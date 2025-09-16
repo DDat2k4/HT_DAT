@@ -1,9 +1,9 @@
-package com.example.usermodule.data.entity.Request;
+package com.example.usermodule.data.request;
 
 import lombok.Data;
 
 @Data
-public class LoginRequest {
+public class AuthRequest {
     private String username;
     private String password;
 }

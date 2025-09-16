@@ -1,4 +1,4 @@
-package com.example.usermodule.data.entity.Response;
+package com.example.usermodule.data.pojo;
 
 import lombok.Data;
 import java.time.LocalDateTime;

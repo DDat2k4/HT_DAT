@@ -1,6 +1,6 @@
 package com.example.usermodule.service;
 
-import com.example.usermodule.data.entity.Response.UserDTO;
+import com.example.usermodule.data.pojo.UserDTO;
 import com.example.usermodule.data.entity.Role;
 import com.example.usermodule.data.entity.UserToken;
 import com.example.usermodule.repository.*;
