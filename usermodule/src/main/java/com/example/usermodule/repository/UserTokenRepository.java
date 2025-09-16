@@ -10,8 +10,15 @@ import java.util.Optional;
 
 @Repository
 public interface UserTokenRepository extends JpaRepository<UserToken, Long> {
+
     @Query("SELECT t FROM UserToken t WHERE t.userId = :userId AND t.revoked = false")
     List<UserToken> findActiveTokensByUserId(Long userId);
+
+    Optional<UserToken> findByRefreshTokenAndRevokedFalse(String refreshToken);
+
+    @Query("UPDATE UserToken t SET t.revoked = true WHERE t.userId = :userId")
+    void revokeAllTokensByUserId(Long userId);
 }
+
 
 
