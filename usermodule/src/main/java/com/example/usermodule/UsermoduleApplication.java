@@ -8,7 +8,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class UsermoduleApplication {
 
 	public static void main(String[] args) {
-		Dotenv dotenv = Dotenv.load(); // load .env
+		Dotenv dotenv = Dotenv.configure()
+				.directory("D:/Project/usermodule/usermodule") // nơi .env
+				.load();
 		System.setProperty("GOOGLE_CLIENT_ID", dotenv.get("GOOGLE_CLIENT_ID"));
 		System.setProperty("GOOGLE_CLIENT_SECRET", dotenv.get("GOOGLE_CLIENT_SECRET"));
 		SpringApplication.run(UsermoduleApplication.class, args);
