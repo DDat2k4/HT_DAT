@@ -2,10 +2,13 @@ package com.example.usermodule.service;
 
 import com.example.usermodule.data.entity.User;
 import com.example.usermodule.data.entity.UserToken;
+import com.example.usermodule.data.request.AuthProperties;
 import com.example.usermodule.data.response.AuthResponse;
+import com.example.usermodule.exception.AuthException;
 import com.example.usermodule.repository.UserRepository;
 import com.example.usermodule.repository.UserTokenRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -14,59 +17,122 @@ import java.time.temporal.ChronoUnit;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
     private final UserRepository userRepository;
     private final UserTokenRepository userTokenRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+    private final AuthProperties authProperties;
 
-    private static final int MAX_FAILED_ATTEMPTS = 5;
-    private static final int LOCK_DURATION_MINUTES = 15;
-
-    //LOGIN
+    // LOGIN
     public AuthResponse login(String username, String rawPassword) {
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new AuthException("User not found"));
 
-        // Check if account is locked
+        // Check locked
         if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now())) {
-            throw new RuntimeException("Account is locked until " + user.getLockedUntil());
+            throw new AuthException("Account is locked until " + user.getLockedUntil());
         }
 
         // Check password
         if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
-            // Tăng failed attempts
             user.setFailedAttempts(user.getFailedAttempts() + 1);
 
-            // Lock account nếu vượt quá số lần cho phép
-            if (user.getFailedAttempts() >= MAX_FAILED_ATTEMPTS) {
-                user.setLockedUntil(LocalDateTime.now().plus(LOCK_DURATION_MINUTES, ChronoUnit.MINUTES));
-                user.setFailedAttempts(0); // reset đếm sau khi khóa
+            if (user.getFailedAttempts() >= authProperties.getMaxFailedAttempts()) {
+                user.setLockedUntil(LocalDateTime.now()
+                        .plus(authProperties.getLockDurationMinutes(), ChronoUnit.MINUTES));
+                user.setFailedAttempts(0);
+                log.warn("User {} locked until {}", username, user.getLockedUntil());
             }
 
             userRepository.save(user);
-            throw new RuntimeException("Invalid credentials");
+            log.warn("Login failed for user {}, attempts={}", username, user.getFailedAttempts());
+            throw new AuthException("Invalid credentials");
         }
 
-        // Login thành công → reset failedAttempts và lockedUntil
+        // Success
         user.setFailedAttempts(0);
         user.setLockedUntil(null);
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
 
-        // Revoke old tokens
+        log.info("User {} logged in successfully at {}", username, user.getLastLogin());
+        return generateTokens(user);
+    }
+
+    // REFRESH TOKEN
+    public AuthResponse refreshToken(String refreshToken) {
+        UserToken token = userTokenRepository.findByRefreshTokenAndRevokedFalse(refreshToken)
+                .orElseThrow(() -> new AuthException("Refresh token not found or revoked"));
+
+        if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new AuthException("Refresh token expired");
+        }
+
+        String username = jwtService.extractUsername(refreshToken);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AuthException("User not found"));
+
+        if (!jwtService.validateToken(refreshToken, user.getUsername())) {
+            throw new AuthException("Invalid refresh token");
+        }
+
+        log.info("Refresh token used for user {}", username);
+        String newAccessToken = jwtService.generateToken(user.getUsername());
+        return new AuthResponse(newAccessToken, refreshToken);
+    }
+
+    // LOGOUT (1 device)
+    public void logout(String refreshToken) {
+        UserToken token = userTokenRepository.findByRefreshTokenAndRevokedFalse(refreshToken)
+                .orElseThrow(() -> new AuthException("Refresh token not found or already revoked"));
+
+        token.setRevoked(true);
+        userTokenRepository.save(token);
+        log.info("Refresh token revoked for userId={}", token.getUserId());
+    }
+
+    // LOGOUT ALL DEVICES
+    public void logoutAll(Long userId) {
+        userTokenRepository.findActiveTokensByUserId(userId)
+                .forEach(token -> {
+                    token.setRevoked(true);
+                    userTokenRepository.save(token);
+                });
+        log.info("All refresh tokens revoked for userId={}", userId);
+    }
+
+    // CHANGE PASSWORD
+    public void changePassword(String username, String oldPassword, String newPassword) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AuthException("User not found"));
+
+        if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
+            throw new AuthException("Old password is incorrect");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        // revoke all tokens
+        logoutAll(user.getId());
+        log.info("Password changed and tokens revoked for user {}", username);
+    }
+
+    // REUSABLE: generate tokens
+    private AuthResponse generateTokens(User user) {
+        // revoke old tokens
         userTokenRepository.findActiveTokensByUserId(user.getId())
                 .forEach(token -> {
                     token.setRevoked(true);
                     userTokenRepository.save(token);
                 });
 
-        // Generate new tokens
         String accessToken = jwtService.generateToken(user.getUsername());
         String refreshToken = jwtService.generateRefreshToken(user.getUsername());
 
-        // Save refresh token in DB
         UserToken userToken = new UserToken();
         userToken.setUserId(user.getId());
         userToken.setRefreshToken(refreshToken);
@@ -77,66 +143,4 @@ public class AuthService {
 
         return new AuthResponse(accessToken, refreshToken);
     }
-
-    //REFRESH TOKEN
-    public AuthResponse refreshToken(String refreshToken) {
-        UserToken token = userTokenRepository.findByRefreshTokenAndRevokedFalse(refreshToken)
-                .orElseThrow(() -> new RuntimeException("Refresh token not found or revoked"));
-
-        if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Refresh token expired");
-        }
-
-        String username = jwtService.extractUsername(refreshToken);
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        if (!jwtService.validateToken(refreshToken, user.getUsername())) {
-            throw new RuntimeException("Invalid refresh token");
-        }
-
-        String newAccessToken = jwtService.generateToken(user.getUsername());
-        return new AuthResponse(newAccessToken, refreshToken);
-    }
-
-    //LOGOUT 1 TOKEN
-    public void logout(String refreshToken) {
-        UserToken token = userTokenRepository.findByRefreshTokenAndRevokedFalse(refreshToken)
-                .orElseThrow(() -> new RuntimeException("Refresh token not found or already revoked"));
-
-        token.setRevoked(true);
-        userTokenRepository.save(token);
-    }
-
-    //LOGOUT ALL DEVICES
-    public void logoutAll(Long userId) {
-        userTokenRepository.findActiveTokensByUserId(userId)
-                .forEach(token -> {
-                    token.setRevoked(true);
-                    userTokenRepository.save(token);
-                });
-    }
-
-    //CHANGE PASSWORD
-    public void changePassword(String username, String oldPassword, String newPassword) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        // Kiểm tra mật khẩu cũ
-        if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
-            throw new RuntimeException("Old password is incorrect");
-        }
-
-        // Update mật khẩu mới
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
-        userRepository.save(user);
-
-        // Revoke tất cả refresh tokens → user phải login lại
-        userTokenRepository.findActiveTokensByUserId(user.getId())
-                .forEach(token -> {
-                    token.setRevoked(true);
-                    userTokenRepository.save(token);
-                });
-    }
-
 }

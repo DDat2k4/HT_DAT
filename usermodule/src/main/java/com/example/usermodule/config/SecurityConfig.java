@@ -16,23 +16,34 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthFilter;
+    private final com.example.usermodule.config.jwt.JwtAuthenticationFilter jwtAuthFilter;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            com.example.usermodule.config.jwt.JwtAuthenticationFilter jwtAuthFilter,
+            com.example.usermodule.service.sso.CustomOidcUserService customOidcUserService,
+            com.example.usermodule.service.sso.OAuth2SuccessHandler oAuth2SuccessHandler,
+            com.example.usermodule.service.sso.OAuth2FailureHandler oAuth2FailureHandler
+    ) throws Exception {
+
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll() // Cho phép login, register, refresh
-                        .anyRequest().authenticated()            // Các API khác phải có JWT
+                        .requestMatchers("/api/auth/**", "/oauth2/**", "/login/**").permitAll()
+                        .anyRequest().authenticated()
                 )
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .oauth2Login(oauth2 -> oauth2
+                        .userInfoEndpoint(userInfo -> userInfo.oidcUserService(customOidcUserService)) // ✅ dùng service custom
+                        .successHandler(oAuth2SuccessHandler) // ✅ trả JSON token
+                        .failureHandler(oAuth2FailureHandler) // ✅ trả JSON lỗi
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
+
 
     @Bean
     public PasswordEncoder passwordEncoder() {
