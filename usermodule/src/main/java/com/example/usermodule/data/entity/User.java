@@ -30,4 +30,7 @@ public class User {
 
     @Column(name = "last_login")
     private LocalDateTime lastLogin;
+
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
 }

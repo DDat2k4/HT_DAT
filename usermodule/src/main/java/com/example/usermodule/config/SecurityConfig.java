@@ -23,7 +23,7 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**").permitAll() // Cho phép login, register, refresh
+                        .requestMatchers("/api/auth/**").permitAll() // Cho phép login, register, refresh
                         .anyRequest().authenticated()            // Các API khác phải có JWT
                 )
                 .sessionManagement(session -> session
