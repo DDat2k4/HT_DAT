@@ -35,3 +35,7 @@ build/
 # Secrets
 .env
 usermodule/.env
+
+# Ignore local application.properties containing secrets
+usermodule/src/main/resources/application.properties
+
