@@ -8,19 +8,22 @@ import com.example.usermodule.service.JwtService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
-import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
+import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
+import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
+import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
-import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
-import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class CustomOidcUserService extends OidcUserService {
+public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequest, OAuth2User> {
 
     private final UserRepository userRepository;
     private final UserTokenRepository userTokenRepository;
@@ -29,18 +32,17 @@ public class CustomOidcUserService extends OidcUserService {
 
     @Override
     @Transactional
-    public OidcUser loadUser(OidcUserRequest userRequest) throws OAuth2AuthenticationException {
-        OidcUser oidcUser = super.loadUser(userRequest);
+    public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
+        OAuth2User oauth2User = new DefaultOAuth2UserService().loadUser(userRequest);
 
-        String email = oidcUser.getEmail();
-        String username = (email != null) ? email : Optional.ofNullable(oidcUser.getSubject())
-                .orElse("user-" + UUID.randomUUID());
+        String email = (String) oauth2User.getAttributes().get("email");
+        String tmpUsername = email != null ? email : "fb-" + oauth2User.getAttributes().get("id");
 
-        // Tìm hoặc tạo user mới
+        // provision local user
         User user = userRepository.findByEmail(email).orElseGet(() -> {
             User u = new User();
             u.setUid(UUID.randomUUID());
-            u.setUsername(username);
+            u.setUsername(tmpUsername);
             u.setEmail(email);
             u.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
             u.setActive((short) 1);
@@ -49,41 +51,33 @@ public class CustomOidcUserService extends OidcUserService {
             return userRepository.save(u);
         });
 
-        // update last login
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
 
-        // revoke all old tokens
-        userTokenRepository.revokeAllTokensByUserId(user.getId());
+        // revoke old tokens
+        userTokenRepository.findActiveTokensByUserId(user.getId()).forEach(t -> {
+            t.setRevoked(true);
+            userTokenRepository.save(t);
+        });
 
         // issue new tokens
         String accessToken = jwtService.generateToken(user.getUsername());
         String refreshToken = jwtService.generateRefreshToken(user.getUsername());
 
-        UserToken token = new UserToken();
-        token.setUserId(user.getId());
-        token.setRefreshToken(refreshToken);
-        token.setCreatedAt(LocalDateTime.now());
-        token.setExpiresAt(LocalDateTime.now().plusDays(7));
-        token.setRevoked(false);
-        userTokenRepository.save(token);
+        UserToken ut = new UserToken();
+        ut.setUserId(user.getId());
+        ut.setRefreshToken(refreshToken);
+        ut.setCreatedAt(LocalDateTime.now());
+        ut.setExpiresAt(LocalDateTime.now().plusDays(7));
+        ut.setRevoked(false);
+        userTokenRepository.save(ut);
 
-        // attach attrs
-        Map<String, Object> attrs = new HashMap<>(oidcUser.getAttributes());
+        // attach local tokens
+        Map<String, Object> attrs = new HashMap<>(oauth2User.getAttributes());
         attrs.put("localAccessToken", accessToken);
         attrs.put("localRefreshToken", refreshToken);
         attrs.put("localUsername", user.getUsername());
 
-        return new DefaultOidcUser(
-                oidcUser.getAuthorities(),
-                oidcUser.getIdToken(),
-                oidcUser.getUserInfo(),
-                "email"
-        ) {
-            @Override
-            public Map<String, Object> getAttributes() {
-                return Collections.unmodifiableMap(attrs);
-            }
-        };
+        return new DefaultOAuth2User(oauth2User.getAuthorities(), attrs, "id");
     }
 }
