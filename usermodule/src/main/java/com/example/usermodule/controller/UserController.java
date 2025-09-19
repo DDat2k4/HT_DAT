@@ -12,7 +12,6 @@ public class UserController {
     public Object getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return authentication.getPrincipal();
-        // Có thể trả về UserDetails hoặc JWT Claims tuỳ bạn implement
     }
 }
 
