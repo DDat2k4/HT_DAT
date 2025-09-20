@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.Set;
 
 @Service
 public class JwtService {
@@ -23,9 +24,11 @@ public class JwtService {
     }
 
     // Tạo Access Token
-    public String generateToken(String username) {
+    public String generateToken(String username, Set<String> roles, Set<String> permissions) {
         return Jwts.builder()
                 .setSubject(username)
+                .claim("roles", roles)
+                .claim("permissions", permissions)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + jwtProperties.getExpiration()))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
@@ -61,7 +64,8 @@ public class JwtService {
         return parseClaims(token).getExpiration().before(new Date());
     }
 
-    private Claims parseClaims(String token) {
+
+    public Claims parseClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(secretKey)
                 .build()

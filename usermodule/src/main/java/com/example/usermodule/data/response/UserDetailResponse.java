@@ -1,12 +1,18 @@
-package com.example.usermodule.data.pojo;
+package com.example.usermodule.data.response;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
 @Data
-public class UserDTO {
+@AllArgsConstructor
+@NoArgsConstructor
+public class UserDetailResponse {
     private Long id;
     private String username;
     private String email;
@@ -18,3 +24,4 @@ public class UserDTO {
     private Set<String> permissions;
     private List<String> activeTokens;
 }
+

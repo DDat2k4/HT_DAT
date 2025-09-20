@@ -40,7 +40,7 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         if (localAccessToken != null) {
             Cookie accessCookie = new Cookie("ACCESS_TOKEN", localAccessToken);
             accessCookie.setHttpOnly(true);
-            accessCookie.setSecure(false); // set to true in production (HTTPS)
+            accessCookie.setSecure(false);
             accessCookie.setPath("/");
             accessCookie.setMaxAge((int) Duration.ofMinutes(15).getSeconds());
             response.addCookie(accessCookie);
@@ -49,13 +49,12 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         if (localRefreshToken != null) {
             Cookie refreshCookie = new Cookie("REFRESH_TOKEN", localRefreshToken);
             refreshCookie.setHttpOnly(true);
-            refreshCookie.setSecure(false); // set to true in production
+            refreshCookie.setSecure(false);
             refreshCookie.setPath("/");
             refreshCookie.setMaxAge((int) Duration.ofDays(7).getSeconds());
             response.addCookie(refreshCookie);
         }
 
-        // Redirect to frontend (SPA)
         getRedirectStrategy().sendRedirect(request, response, FRONTEND_URL);
     }
 }

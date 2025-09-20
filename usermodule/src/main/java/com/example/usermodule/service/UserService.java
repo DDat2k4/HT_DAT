@@ -9,11 +9,13 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class UserService {
+
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
     private final UserRoleRepository userRoleRepository;
@@ -41,30 +43,37 @@ public class UserService {
             });
 
             // roles
-            List<Object[]> roleObjects = userRoleRepository.findRolesByUserId(user.getId());
-            List<Role> roles = roleObjects.stream()
-                    .map(obj -> {
-                        Role r = new Role();
-                        r.setId(((Number) obj[0]).longValue());
-                        r.setName((String) obj[1]);
-                        r.setDescription((String) obj[2]);
-                        return r;
-                    }).toList();
-            dto.setRoles(roles.stream().map(Role::getName).collect(Collectors.toList()));
+            Set<Role> roles = userRoleRepository.findRolesByUserId(user.getId())
+                    .stream()
+                    .map(obj -> new Role(
+                            ((Number) obj[0]).longValue(),
+                            (String) obj[1],
+                            (String) obj[2]
+                    ))
+                    .collect(Collectors.toSet());
 
-            // permissions theo role
-            List<String> permissions = roles.stream()
-                    .flatMap(role -> {
-                        List<Object[]> permObjs = rolePermissionRepository.findPermissionsByRoleId(role.getId());
-                        return permObjs.stream().map(obj -> (String) obj[1]); // obj[1] = code
-                    })
-                    .distinct()
-                    .toList();
+            dto.setRoles(
+                    roles.stream()
+                            .map(Role::getName)
+                            .collect(Collectors.toSet())
+            );
+
+            // permissions theo roles
+            Set<String> permissions = roles.stream()
+                    .flatMap(role ->
+                            rolePermissionRepository.findPermissionsByRoleId(role.getId())
+                                    .stream()
+                                    .map(obj -> (String) obj[1])
+                    )
+                    .collect(Collectors.toSet());
             dto.setPermissions(permissions);
 
-            // active tokens
-            List<UserToken> tokens = userTokenRepository.findActiveTokensByUserId(user.getId());
-            dto.setActiveTokens(tokens.stream().map(UserToken::getRefreshToken).toList());
+            // active tokens (refreshTokens)
+            List<String> activeTokens = userTokenRepository.findActiveTokensByUserId(user.getId())
+                    .stream()
+                    .map(UserToken::getRefreshToken)
+                    .toList();
+            dto.setActiveTokens(activeTokens);
 
             return dto;
         });

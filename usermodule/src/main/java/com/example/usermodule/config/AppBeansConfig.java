@@ -1,10 +1,5 @@
 package com.example.usermodule.config;
 
-import com.example.usermodule.config.jwt.JwtAuthenticationFilter;
-import com.example.usermodule.service.sso.CustomOidcUserService;
-import com.example.usermodule.service.sso.CustomOAuth2UserService;
-import com.example.usermodule.service.sso.OAuth2FailureHandler;
-import com.example.usermodule.service.sso.OAuth2SuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

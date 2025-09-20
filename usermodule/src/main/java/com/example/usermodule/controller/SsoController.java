@@ -15,7 +15,6 @@ public class SsoController {
     public ResponseEntity<?> onSsoSuccess(@AuthenticationPrincipal OAuth2User principal) {
         if (principal == null) return ResponseEntity.status(401).body(Map.of("error", "Not authenticated"));
 
-        // attributes include localAccessToken/localRefreshToken when using CustomOidcUserService
         return ResponseEntity.ok(Map.of(
                 "message", "SSO login success",
                 "attributes", principal.getAttributes()

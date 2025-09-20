@@ -2,9 +2,11 @@ package com.example.usermodule.service.sso;
 
 import com.example.usermodule.data.entity.User;
 import com.example.usermodule.data.entity.UserToken;
+import com.example.usermodule.mapper.UserMapper;
 import com.example.usermodule.repository.UserRepository;
 import com.example.usermodule.repository.UserTokenRepository;
 import com.example.usermodule.service.JwtService;
+import com.example.usermodule.service.UserService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -26,6 +28,7 @@ public class CustomOidcUserService extends OidcUserService {
     private final UserTokenRepository userTokenRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+    private final UserService userService;
 
     @Override
     @Transactional
@@ -56,8 +59,17 @@ public class CustomOidcUserService extends OidcUserService {
         // revoke all old tokens
         userTokenRepository.revokeAllTokensByUserId(user.getId());
 
+        // Lấy roles + permissions
+        var dto = userService.getUserDetail(user.getId())
+                .orElseThrow(() -> new RuntimeException("User detail not found"));
+        var userDetail = UserMapper.toResponse(dto);
+
         // issue new tokens
-        String accessToken = jwtService.generateToken(user.getUsername());
+        String accessToken = jwtService.generateToken(
+                user.getUsername(),
+                userDetail.getRoles(),
+                userDetail.getPermissions()
+        );
         String refreshToken = jwtService.generateRefreshToken(user.getUsername());
 
         UserToken token = new UserToken();
@@ -73,6 +85,8 @@ public class CustomOidcUserService extends OidcUserService {
         attrs.put("localAccessToken", accessToken);
         attrs.put("localRefreshToken", refreshToken);
         attrs.put("localUsername", user.getUsername());
+        attrs.put("roles", userDetail.getRoles());
+        attrs.put("permissions", userDetail.getPermissions());
 
         return new DefaultOidcUser(
                 oidcUser.getAuthorities(),

@@ -2,9 +2,13 @@ package com.example.usermodule.service.sso;
 
 import com.example.usermodule.data.entity.User;
 import com.example.usermodule.data.entity.UserToken;
+import com.example.usermodule.data.pojo.UserDTO;
+import com.example.usermodule.data.response.UserDetailResponse;
+import com.example.usermodule.mapper.UserMapper;
 import com.example.usermodule.repository.UserRepository;
 import com.example.usermodule.repository.UserTokenRepository;
 import com.example.usermodule.service.JwtService;
+import com.example.usermodule.service.UserService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,6 +33,7 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
     private final UserTokenRepository userTokenRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+    private final UserService userService;
 
     @Override
     @Transactional
@@ -60,8 +65,17 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
             userTokenRepository.save(t);
         });
 
+        // Lấy roles + permissions qua UserService + UserMapper
+        UserDTO dto = userService.getUserDetail(user.getId())
+                .orElseThrow(() -> new RuntimeException("User detail not found"));
+        UserDetailResponse userDetail = UserMapper.toResponse(dto);
+
         // issue new tokens
-        String accessToken = jwtService.generateToken(user.getUsername());
+        String accessToken = jwtService.generateToken(
+                user.getUsername(),
+                userDetail.getRoles(),
+                userDetail.getPermissions()
+        );
         String refreshToken = jwtService.generateRefreshToken(user.getUsername());
 
         UserToken ut = new UserToken();
@@ -72,12 +86,15 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
         ut.setRevoked(false);
         userTokenRepository.save(ut);
 
-        // attach local tokens
+        // attach local tokens + roles/permissions
         Map<String, Object> attrs = new HashMap<>(oauth2User.getAttributes());
         attrs.put("localAccessToken", accessToken);
         attrs.put("localRefreshToken", refreshToken);
         attrs.put("localUsername", user.getUsername());
+        attrs.put("roles", userDetail.getRoles());
+        attrs.put("permissions", userDetail.getPermissions());
 
         return new DefaultOAuth2User(oauth2User.getAuthorities(), attrs, "id");
     }
 }
+
