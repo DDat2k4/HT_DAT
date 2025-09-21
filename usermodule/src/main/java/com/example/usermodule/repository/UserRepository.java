@@ -1,6 +1,7 @@
 package com.example.usermodule.repository;
 
 import com.example.usermodule.data.entity.User;
+import com.example.usermodule.data.pojo.UserDTO;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -22,10 +23,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // Tìm theo phone
     Optional<User> findByPhone(String phone);
 
-    // (lấy thông tin mở rộng)
+    /**
+     * Lấy user cơ bản + profile name/avatar theo userId
+     * Trả về Object[] để map thủ công vào UserDTO
+     */
     @Query(value = """
-        SELECT u.id, u.username, u.email, u.phone, u.active,
-               p.name AS profile_name, p.avatar AS profile_avatar
+        SELECT u.id, u.username, u.email, u.phone, u.last_login, p.name, p.avatar
         FROM users u
         LEFT JOIN user_profiles p ON u.id = p.user_id
         WHERE u.id = :userId

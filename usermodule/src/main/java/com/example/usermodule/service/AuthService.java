@@ -77,12 +77,16 @@ public class AuthService {
                 userDetail.getPermissions()
         );
 
-        return new AuthResponse(
-                newAccessToken,
-                refreshToken,
-                userDetail.getRoles(),
-                userDetail.getPermissions()
-        );
+        return AuthResponse.builder()
+                .username(user.getUsername())
+                .email(userDetail.getEmail())
+                .avatar(userDetail.getAvatar())
+                .provider("local")
+                .accessToken(newAccessToken)
+                .refreshToken(refreshToken)
+                .roles(userDetail.getRoles())
+                .permissions(userDetail.getPermissions())
+                .build();
     }
 
     // LOGOUT (1 device)
@@ -174,11 +178,15 @@ public class AuthService {
         userToken.setRevoked(false);
         userTokenRepository.save(userToken);
 
-        return new AuthResponse(
-                accessToken,
-                refreshToken,
-                userDetail.getRoles(),
-                userDetail.getPermissions()
-        );
+        return AuthResponse.builder()
+                .username(user.getUsername())
+                .email(userDetail.getEmail())
+                .avatar(userDetail.getAvatar())
+                .provider("local")
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .roles(userDetail.getRoles())
+                .permissions(userDetail.getPermissions())
+                .build();
     }
 }

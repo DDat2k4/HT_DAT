@@ -1,18 +1,28 @@
-package com.example.usermodule.controller;
-
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-@RestController
-public class UserController {
-
-    @GetMapping("/api/user/me")
-    public Object getCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return authentication.getPrincipal();
-    }
-}
-
-
+//package com.example.usermodule.controller;
+//
+//import com.example.usermodule.service.UserService;
+//import lombok.RequiredArgsConstructor;
+//import org.springframework.http.ResponseEntity;
+//import org.springframework.web.bind.annotation.*;
+//
+//import java.util.Set;
+//
+//@RestController
+//@RequestMapping("/api/users")
+//@RequiredArgsConstructor
+//public class UserController {
+//
+//    private final UserService userService;
+//
+//    /**
+//     * Gán roles cho user
+//     */
+//    @PostMapping("/{userId}/roles")
+//    public ResponseEntity<?> assignRoles(
+//            @PathVariable Long userId,
+//            @RequestBody Set<Long> roleIds
+//    ) {
+//        userService.assignRolesToUser(userId, roleIds);
+//        return ResponseEntity.ok("Roles assigned successfully");
+//    }
+//}
